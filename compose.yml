@@ -1,0 +1,64 @@
+version: "3.8"
+
+networks:
+  test_network:
+    driver: bridge
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+
+services:
+  frontend-service:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "4173:4173"
+    networks:
+      - test_network
+
+  api-service:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=api-service
+    networks:
+      - test_network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./dev/otel-collector.yaml:/etc/otel-collector.yaml
+    ports:
+      - "4317:4317"
+    networks:
+      - test_network
+
+  prometheus:
+    image: prom/prometheus:v3.3.0
+    volumes:
+      - ./dev/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - test_network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.68.0
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+    networks:
+      - test_network
